@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import sqlite3
-from datetime import datetime
 import plotly.express as px
-import time
+import joblib
+from datetime import datetime
 
 # =========================================================
 # PAGE CONFIG
@@ -17,22 +16,33 @@ st.set_page_config(
 )
 
 # =========================================================
-# DATABASE CONNECTION
+# SESSION STATES
 # =========================================================
 
+if "show_outputs" not in st.session_state:
+    st.session_state.show_outputs = False
+
+if "current_result" not in st.session_state:
+    st.session_state.current_result = None
+
+if "show_statistics" not in st.session_state:
+    st.session_state.show_statistics = False
+
+# =========================================================
+# DATABASE
+# =========================================================
+
+DATABASE = "tb_surveillance.db"
+
 conn = sqlite3.connect(
-    "tb_surveillance.db",
+    DATABASE,
     check_same_thread=False
 )
 
 cursor = conn.cursor()
 
-# =========================================================
-# CREATE DATABASE TABLE
-# =========================================================
-
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS surveillance_records (
+CREATE TABLE IF NOT EXISTS surveillance_data (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     Date TEXT,
     Age INTEGER,
@@ -42,24 +52,20 @@ CREATE TABLE IF NOT EXISTS surveillance_records (
     Xray TEXT,
     EPTB TEXT,
     GeneXpert TEXT,
-    Surveillance_Result TEXT
+    Surveillance_Outcome TEXT
 )
 """)
 
 conn.commit()
 
 # =========================================================
-# LOAD MACHINE LEARNING MODELS
+# LOAD MODELS
 # =========================================================
 
 rf_model = joblib.load("randomforest.pkl")
 lr_model = joblib.load("logistic.pkl")
 svm_model = joblib.load("svm.pkl")
 xgb_model = joblib.load("xgboost.pkl")
-
-# =========================================================
-# LOAD MODEL COLUMNS
-# =========================================================
 
 model_columns = joblib.load("model_columns.pkl")
 
@@ -72,22 +78,15 @@ st.title(
 )
 
 st.markdown("""
-Prototype surveillance and clinical decision-support system
-for monitoring pediatric tuberculosis trends and hotspot
-locations using routinely collected clinical data.
+Prototype surveillance and clinical decision-support system for monitoring pediatric tuberculosis trends and hotspot locations using routinely collected clinical data.
 """)
-
-# =========================================================
-# DISCLAIMER
-# =========================================================
 
 st.warning("""
 Prototype System:
-This platform supports pediatric TB surveillance
-and clinical decision-support.
+This platform supports pediatric TB surveillance and clinical decision-support.
 
 It DOES NOT replace professional medical diagnosis,
-laboratory confirmation, GeneXpert testing,
+GeneXpert testing, laboratory confirmation,
 or clinician judgement.
 """)
 
@@ -98,97 +97,101 @@ or clinician judgement.
 with st.expander("Healthcare Worker Instructions"):
 
     st.markdown("""
-1. Enter patient clinical information using the sidebar.
+1. Enter patient clinical information.
 
-2. Click **Run Surveillance Assessment**.
+2. Click Enter Data to save surveillance records.
 
-3. Review the surveillance outcome.
+3. Click Run Surveillance Assessment to display surveillance analytics.
 
-4. Patient records are automatically saved into the database.
+4. Use hotspot monitoring and dashboard analytics for surveillance support.
 
-5. Use the dashboard to monitor hotspot locations and surveillance trends.
+5. Click Show Detailed Statistics to display GeneXpert, X-ray and EPTB analytics.
+
+6. Database records remain permanently stored unless manually removed by system administrators.
 """)
 
 # =========================================================
 # SIDEBAR
 # =========================================================
 
+run_assessment = st.sidebar.button(
+    "Run Surveillance Assessment"
+)
+
+if st.sidebar.button("Clear Displayed Results"):
+
+    st.session_state.show_outputs = False
+    st.session_state.show_statistics = False
+    st.session_state.current_result = None
+
+    st.rerun()
+
+# =========================================================
+# INPUT SECTION
+# =========================================================
+
+st.sidebar.markdown("---")
+
 st.sidebar.header("Patient Information")
 
 age = st.sidebar.number_input(
     "Age",
     min_value=0,
-    step=1
+    step=1,
+    key="age"
 )
 
 sex = st.sidebar.selectbox(
     "Sex",
-    ["Male", "Female"]
+    ["Male", "Female"],
+    key="sex"
 )
 
 hiv_status = st.sidebar.selectbox(
     "HIV Status",
-    ["Positive", "Negative", "Unknown"]
+    ["Positive", "Negative", "Unknown"],
+    key="hiv"
 )
 
 location = st.sidebar.selectbox(
     "Location / District",
     [
         "Bulawayo",
-        "Gokwe",
         "Gweru",
         "Kwekwe",
-        "Mberengwa",
-        "Mvuma",
         "Shurugwi",
         "Zvishavane",
-        "Unknown"
-    ]
+        "Mberengwa",
+        "Gokwe",
+        "Mvuma"
+    ],
+    key="location"
 )
 
 xray = st.sidebar.selectbox(
     "X-ray Suggestive of TB",
-    ["Yes", "No", "Unknown"]
+    ["Yes", "No", "Unknown"],
+    key="xray"
 )
 
 eptb = st.sidebar.selectbox(
     "EPTB Signs Present",
-    ["Yes", "No", "Unknown"]
+    ["Yes", "No", "Unknown"],
+    key="eptb"
 )
 
 genexpert = st.sidebar.selectbox(
     "GeneXpert Result",
-    ["Positive", "Negative", "Not Available"]
+    ["Positive", "Negative", "Not Available"],
+    key="genexpert"
 )
 
 # =========================================================
-# CLEAR DISPLAY BUTTON
+# ENTER DATA BUTTON
 # =========================================================
 
-if st.sidebar.button("Clear Display"):
-
-    st.session_state.clear()
-    st.rerun()
-
-# =========================================================
-# CLEAR DATASET BUTTON
-# =========================================================
-
-if st.sidebar.button("Clear Dataset"):
-
-    cursor.execute("DELETE FROM surveillance_records")
-    conn.commit()
-
-    st.sidebar.success(
-        "Dataset cleared successfully."
-    )
-
-# =========================================================
-# RUN BUTTON
-# =========================================================
-
-run_button = st.sidebar.button(
-    "Run Surveillance Assessment"
+enter_data = st.sidebar.button(
+    "Enter Data"
 )
 
 # =========================================================
@@ -225,10 +228,6 @@ def prepare_input():
 
     input_df = pd.DataFrame([data])
 
-    # =====================================================
-    # MATCH TRAINING COLUMNS
-    # =====================================================
-
     input_df = input_df.reindex(
         columns=model_columns,
         fill_value=0
@@ -237,10 +236,10 @@ def prepare_input():
     return input_df
 
 # =========================================================
-# RUN SURVEILLANCE
+# ENTER DATA LOGIC
 # =========================================================
 
-if run_button:
+if enter_data:
 
     input_data = prepare_input()
 
@@ -260,42 +259,38 @@ if run_button:
         round(np.mean(predictions))
     )
 
-    st.subheader("Surveillance Result")
-
     # =====================================================
-    # SURVEILLANCE LOGIC
+    # FINAL SURVEILLANCE RESULT
     # =====================================================
 
     if genexpert == "Positive":
 
-        result = "Confirmed GeneXpert Positive"
-
-        st.error("""
-⚠ Confirmed GeneXpert Positive Pediatric TB Surveillance Case
-""")
-
-    elif final_prediction == 1:
-
-        result = "Higher Pediatric TB Surveillance Concern"
-
-        st.error("""
-⚠ Higher Pediatric TB Surveillance Concern Detected
-""")
+        final_result = (
+            "Higher Pediatric TB Surveillance Concern"
+        )
 
     else:
 
-        result = "Lower Pediatric TB Surveillance Concern"
+        if final_prediction == 1:
 
-        st.success("""
-Lower Pediatric TB Surveillance Concern
-""")
+            final_result = (
+                "Higher Pediatric TB Surveillance Concern"
+            )
+
+        else:
+
+            final_result = (
+                "Lower Pediatric TB Surveillance Concern"
+            )
 
     # =====================================================
     # SAVE TO DATABASE
     # =====================================================
 
+    current_date = str(datetime.now())
+
     cursor.execute("""
-    INSERT INTO surveillance_records (
+    INSERT INTO surveillance_data (
         Date,
         Age,
         Sex,
@@ -304,11 +299,11 @@ Lower Pediatric TB Surveillance Concern
         Xray,
         EPTB,
         GeneXpert,
-        Surveillance_Result
+        Surveillance_Outcome
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        str(datetime.now()),
+        current_date,
         age,
         sex,
         hiv_status,
@@ -316,120 +311,218 @@ Lower Pediatric TB Surveillance Concern
         xray,
         eptb,
         genexpert,
-        result
+        final_result
     ))
 
     conn.commit()
 
-    success_message = st.success(
-        "Patient surveillance record saved successfully."
+    st.sidebar.success(
+        "Patient surveillance data entered successfully."
     )
 
-    time.sleep(2)
+# =========================================================
+# RUN ASSESSMENT DISPLAY
+# =========================================================
 
-    success_message.empty()
+if run_assessment:
+
+    st.session_state.show_outputs = True
 
 # =========================================================
 # LOAD DATABASE
 # =========================================================
 
 df = pd.read_sql_query(
-    "SELECT * FROM surveillance_records",
+    "SELECT * FROM surveillance_data",
     conn
 )
 
 # =========================================================
-# DASHBOARD
+# DISPLAY OUTPUTS
 # =========================================================
 
-if not df.empty:
+if st.session_state.show_outputs:
+
+    # =====================================================
+    # DASHBOARD
+    # =====================================================
 
     st.subheader("Surveillance Dashboard")
-
-    col1, col2, col3, col4 = st.columns(4)
 
     total_cases = len(df)
 
     high_concern = len(
         df[
-            df["Surveillance_Result"]
-            == "Higher Pediatric TB Surveillance Concern"
+            df["Surveillance_Outcome"]
+            ==
+            "Higher Pediatric TB Surveillance Concern"
         ]
     )
 
-    gene_positive = len(
-        df[df["GeneXpert"] == "Positive"]
+    if len(df) > 0:
+
+        top_hotspot = (
+            df["Location"]
+            .value_counts()
+            .idxmax()
+        )
+
+    else:
+
+        top_hotspot = "No Data"
+
+    col1, col2, col3 = st.columns([1,1,2])
+
+    col1.metric(
+        "Total Cases",
+        total_cases
     )
 
-    hotspot = (
-        df["Location"].value_counts().idxmax()
-        if not df.empty else "No Data"
+    col2.metric(
+        "High Concern",
+        high_concern
     )
 
-    col1.metric("Total Cases", total_cases)
-    col2.metric("High Concern", high_concern)
-    col3.metric("GeneXpert +", gene_positive)
-    col4.metric("Top Hotspot", hotspot)
+    col3.markdown("### Top Hotspot")
+    col3.write(f"## {top_hotspot}")
 
     # =====================================================
     # HOTSPOT GRAPH
     # =====================================================
 
-    st.subheader("TB Hotspot Surveillance")
+    if len(df) > 0:
 
-    hotspot_data = (
-        df["Location"]
-        .value_counts()
-        .reset_index()
-    )
+        st.subheader("TB Hotspot Surveillance")
 
-    hotspot_data.columns = [
-        "Location",
-        "Cases"
-    ]
+        hotspot_data = (
+            df["Location"]
+            .value_counts()
+            .reset_index()
+        )
 
-    fig = px.bar(
-        hotspot_data,
-        x="Location",
-        y="Cases",
-        text="Cases"
-    )
+        hotspot_data.columns = [
+            "Location",
+            "Cases"
+        ]
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+        fig = px.bar(
+            hotspot_data,
+            x="Location",
+            y="Cases",
+            text="Cases",
+            title="TB Cases by Location"
+        )
 
-    # =====================================================
-    # GENE XPERT GRAPH
-    # =====================================================
-
-    st.subheader("GeneXpert Surveillance Distribution")
-
-    gene_data = (
-        df["GeneXpert"]
-        .value_counts()
-        .reset_index()
-    )
-
-    gene_data.columns = [
-        "GeneXpert",
-        "Cases"
-    ]
-
-    fig2 = px.pie(
-        gene_data,
-        names="GeneXpert",
-        values="Cases"
-    )
-
-    st.plotly_chart(
-        fig2,
-        use_container_width=True
-    )
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            key="hotspot_chart"
+        )
 
     # =====================================================
-    # DATASET
+    # SHOW DETAILED STATISTICS BUTTON
+    # =====================================================
+
+    if st.button("Show Detailed Statistics"):
+
+        st.session_state.show_statistics = True
+
+    # =====================================================
+    # DETAILED STATISTICS SECTION
+    # =====================================================
+
+    if st.session_state.show_statistics:
+
+        st.subheader("Detailed Clinical Statistics")
+
+        # =================================================
+        # GENEXPERT GRAPH
+        # =================================================
+
+        gene_data = (
+            df["GeneXpert"]
+            .value_counts()
+            .reset_index()
+        )
+
+        gene_data.columns = [
+            "Result",
+            "Count"
+        ]
+
+        fig2 = px.pie(
+            gene_data,
+            names="Result",
+            values="Count",
+            title="GeneXpert Results Distribution"
+        )
+
+        st.plotly_chart(
+            fig2,
+            use_container_width=True,
+            key="gene_xpert_chart"
+        )
+
+        # =================================================
+        # XRAY GRAPH
+        # =================================================
+
+        xray_data = (
+            df["Xray"]
+            .value_counts()
+            .reset_index()
+        )
+
+        xray_data.columns = [
+            "Result",
+            "Count"
+        ]
+
+        fig3 = px.bar(
+            xray_data,
+            x="Result",
+            y="Count",
+            text="Count",
+            title="X-ray Suggestive of TB"
+        )
+
+        st.plotly_chart(
+            fig3,
+            use_container_width=True,
+            key="xray_chart"
+        )
+
+        # =================================================
+        # EPTB GRAPH
+        # =================================================
+
+        eptb_data = (
+            df["EPTB"]
+            .value_counts()
+            .reset_index()
+        )
+
+        eptb_data.columns = [
+            "Result",
+            "Count"
+        ]
+
+        fig4 = px.bar(
+            eptb_data,
+            x="Result",
+            y="Count",
+            text="Count",
+            title="EPTB Signs Distribution"
+        )
+
+        st.plotly_chart(
+            fig4,
+            use_container_width=True,
+            key="eptb_chart"
+        )
+
+    # =====================================================
+    # DATASET TABLE
     # =====================================================
 
     st.subheader("Recorded Dataset")
@@ -446,8 +539,19 @@ if not df.empty:
     csv = df.to_csv(index=False).encode("utf-8")
 
     st.download_button(
-        label="Download Dataset",
-        data=csv,
-        file_name="tb_surveillance_dataset.csv",
-        mime="text/csv"
+        "Download Dataset",
+        csv,
+        "tb_surveillance_dataset.csv",
+        "text/csv"
     )
+
+    # =====================================================
+    # CLEAR DATASET TABLE ONLY
+    # =====================================================
+
+    if st.button("Clear Dataset Table"):
+
+        st.session_state.show_outputs = False
+        st.session_state.show_statistics = False
+
+        st.rerun()
