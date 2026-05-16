@@ -1,49 +1,58 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import joblib
 import os
+
 from datetime import datetime
 
-# =========================================================
+# =====================================================
 # PAGE CONFIGURATION
-# =========================================================
+# =====================================================
 
 st.set_page_config(
-    page_title="Childhood TB Prediction System",
+    page_title="Pediatric TB Surveillance System",
     layout="wide"
 )
 
-# =========================================================
+# =====================================================
 # TITLE
-# =========================================================
+# =====================================================
 
-st.title("Machine Learning-Based Childhood TB Prediction and Surveillance System")
+st.title("Machine Learning-Assisted Pediatric TB Surveillance System")
 
 st.info("""
 Prototype Notice:
-This system is a prototype developed for research and educational purposes.
-It supports preliminary childhood TB risk prediction and surveillance monitoring.
-The system does not replace professional medical diagnosis.
+
+This system was developed for research and educational purposes.
+
+The system is intended to support:
+- pediatric TB surveillance,
+- early warning monitoring,
+- hotspot identification,
+- and clinical decision support.
+
+The system DOES NOT diagnose tuberculosis
+and DOES NOT replace clinicians or laboratory testing.
 """)
 
-# =========================================================
+# =====================================================
 # USER INSTRUCTIONS
-# =========================================================
+# =====================================================
 
 st.markdown("## Instructions for Healthcare Workers")
 
 st.markdown("""
-1. Enter patient clinical information using the left sidebar.
-2. Click **Predict TB Risk**.
-3. Review the prediction results.
-4. Patient surveillance records are automatically saved.
-5. Click **View Surveillance Dashboard** to analyse trends and hotspot locations.
+1. Select the case type.
+2. Enter patient clinical information.
+3. Run the surveillance assessment.
+4. Review surveillance risk output.
+5. Confirmed TB cases can be directly recorded for epidemiological surveillance.
+6. Use the dashboard to monitor hotspot locations and surveillance trends.
 """)
 
-# =========================================================
-# LOAD MACHINE LEARNING MODELS
-# =========================================================
+# =====================================================
+# LOAD MODELS
+# =====================================================
 
 rf_model = joblib.load("randomforest.pkl")
 
@@ -55,58 +64,66 @@ xgb_model = joblib.load("xgboost.pkl")
 
 model_columns = joblib.load("model_columns.pkl")
 
-# =========================================================
+# =====================================================
 # DATABASE
-# =========================================================
+# =====================================================
 
 DATABASE = "tb_surveillance_data.csv"
+
+# =====================================================
+# CREATE DATABASE IF NOT EXISTS
+# =====================================================
 
 if not os.path.exists(DATABASE):
 
     df = pd.DataFrame(columns=[
+
         "Date",
+        "Case_Type",
         "Age",
         "Sex",
         "HIV_Status",
         "Location",
         "Xray",
         "EPTB",
-        "TB_Outcome"
+        "Surveillance_Status"
+
     ])
 
     df.to_csv(DATABASE, index=False)
 
-# =========================================================
+# =====================================================
 # LOAD DATABASE
-# =========================================================
+# =====================================================
 
-try:
+df = pd.read_csv(DATABASE)
 
-    df = pd.read_csv(DATABASE)
-
-except:
-
-    df = pd.DataFrame(columns=[
-        "Date",
-        "Age",
-        "Sex",
-        "HIV_Status",
-        "Location",
-        "Xray",
-        "EPTB",
-        "TB_Outcome"
-    ])
-
-# =========================================================
-# SIDEBAR INPUTS
-# =========================================================
+# =====================================================
+# SIDEBAR
+# =====================================================
 
 st.sidebar.header("Patient Clinical Information")
+
+# =====================================================
+# CASE TYPE
+# =====================================================
+
+case_type = st.sidebar.selectbox(
+    "Case Type",
+    [
+        "Suspected Pediatric TB Case",
+        "Confirmed Pediatric TB Case"
+    ]
+)
+
+# =====================================================
+# PATIENT VARIABLES
+# =====================================================
 
 age = st.sidebar.number_input(
     "Age",
     min_value=0,
-    max_value=100,
+    max_value=18,
     value=5
 )
 
@@ -114,7 +131,8 @@ sex = st.sidebar.selectbox(
     "Sex",
     [
         "Male",
-        "Female"
+        "Female",
+        "Unknown"
     ]
 )
 
@@ -130,13 +148,14 @@ hiv_status = st.sidebar.selectbox(
 location = st.sidebar.selectbox(
     "Location",
     [
-        "Gokwe",
         "Gweru",
         "Kwekwe",
-        "Mberengwa",
-        "Shurugwi",
+        "Gokwe",
         "Zvishavane",
-        "Mvuma"
+        "Shurugwi",
+        "Mberengwa",
+        "Mvuma",
+        "Unknown"
     ]
 )
 
@@ -150,176 +169,169 @@ xray = st.sidebar.selectbox(
 )
 
 eptb = st.sidebar.selectbox(
-    "EPTB",
+    "EPTB Present",
     [
-        "Unknown",
-        "Present"
+        "Yes",
+        "No",
+        "Unknown"
     ]
 )
 
-# =========================================================
-# CREATE INPUT DATAFRAME
-# =========================================================
+# =====================================================
+# RUN SURVEILLANCE SYSTEM
+# =====================================================
 
-input_data = pd.DataFrame(
-    0,
-    index=[0],
-    columns=model_columns
-)
+if st.button("Run Surveillance Assessment"):
 
-# =========================================================
-# FILL INPUT DATA
-# =========================================================
+    # =================================================
+    # CONFIRMED CASE
+    # =================================================
 
-input_data["Age"] = age
+    if case_type == "Confirmed Pediatric TB Case":
 
-# =========================================================
-# SEX
-# =========================================================
+        surveillance_status = "Confirmed TB Surveillance Case"
 
-if sex == "Male":
+        st.error("""
+CONFIRMED PEDIATRIC TB CASE RECORDED
+""")
 
-    input_data["Sex_m"] = 1
+        st.info("""
+This patient already has laboratory or clinical
+confirmation of tuberculosis.
 
-    if "Sex_m " in input_data.columns:
+The case has been added directly into the
+surveillance database for:
+- hotspot monitoring,
+- epidemiological surveillance,
+- and public health tracking.
+""")
 
-        input_data["Sex_m "] = 1
+    # =================================================
+    # SUSPECTED CASE
+    # =================================================
 
-# =========================================================
-# HIV STATUS
-# =========================================================
+    else:
 
-if hiv_status == "Positive":
+        input_data = pd.DataFrame([{
 
-    input_data["HIV_Status_1"] = 1
+            "Age": age,
+            "Sex": sex,
+            "HIV_Status": hiv_status,
+            "Location": location,
+            "Xray": xray,
+            "EPTB": eptb
 
-elif hiv_status == "Unknown":
+        }])
 
-    if "HIV_Status_unknown" in input_data.columns:
+        # =============================================
+        # ENCODE INPUTS
+        # =============================================
 
-        input_data["HIV_Status_unknown"] = 1
+        input_encoded = pd.get_dummies(input_data)
 
-    if "HIV_Status_uknown" in input_data.columns:
+        # ADD MISSING COLUMNS
 
-        input_data["HIV_Status_uknown"] = 1
+        for col in model_columns:
 
-else:
+            if col not in input_encoded.columns:
 
-    input_data["HIV_Status_9"] = 1
+                input_encoded[col] = 0
 
-# =========================================================
-# LOCATION
-# =========================================================
+        # KEEP CORRECT COLUMN ORDER
 
-location_column = f"Location_{location}"
+        input_encoded = input_encoded[model_columns]
 
-if location_column in input_data.columns:
+        # =============================================
+        # MODEL PREDICTIONS
+        # =============================================
 
-    input_data[location_column] = 1
+        rf_pred = rf_model.predict(input_encoded)[0]
 
-if location == "Gweru":
+        lr_pred = lr_model.predict(input_encoded)[0]
 
-    if "Location_Gweru " in input_data.columns:
+        svm_pred = svm_model.predict(input_encoded)[0]
 
-        input_data["Location_Gweru "] = 1
+        xgb_pred = xgb_model.predict(input_encoded)[0]
 
-# =========================================================
-# XRAY
-# =========================================================
+        # =============================================
+        # DISPLAY MODEL OUTPUTS
+        # =============================================
 
-if xray == "Yes":
+        st.subheader("Machine Learning Surveillance Outputs")
 
-    input_data["X-ray_1"] = 1
+        results_df = pd.DataFrame({
 
-elif xray == "Unknown":
+            "Model": [
+                "Random Forest",
+                "Logistic Regression",
+                "Support Vector Machine",
+                "XGBoost"
+            ],
 
-    input_data["X-ray_unknown"] = 1
+            "Surveillance Output": [
+                rf_pred,
+                lr_pred,
+                svm_pred,
+                xgb_pred
+            ]
+        })
 
-# =========================================================
-# EPTB
-# =========================================================
+        st.dataframe(
+            results_df,
+            use_container_width=True
+        )
 
-if eptb == "Unknown":
+        # =============================================
+        # MAJORITY VOTING
+        # =============================================
 
-    input_data["EPTB_unknown"] = 1
+        positive_votes = sum([
 
-# =========================================================
-# PREDICT BUTTON
-# =========================================================
-
-if st.sidebar.button("Predict TB Risk"):
-
-    rf_pred = rf_model.predict(input_data)[0]
-
-    lr_pred = lr_model.predict(input_data)[0]
-
-    svm_pred = svm_model.predict(input_data)[0]
-
-    xgb_pred = xgb_model.predict(input_data)[0]
-
-    # =====================================================
-    # RESULTS
-    # =====================================================
-
-    st.header("Prediction Results")
-
-    results = pd.DataFrame({
-
-        "Model": [
-            "Random Forest",
-            "Logistic Regression",
-            "SVM",
-            "XGBoost"
-        ],
-
-        "Prediction": [
             rf_pred,
             lr_pred,
             svm_pred,
             xgb_pred
-        ]
-    })
 
-    st.dataframe(results)
+        ])
 
-    # =====================================================
-    # MAJORITY VOTING
-    # =====================================================
+        # =============================================
+        # FINAL SURVEILLANCE OUTPUT
+        # =============================================
 
-    positive_votes = (
-        rf_pred +
-        lr_pred +
-        svm_pred +
-        xgb_pred
-    )
+        if positive_votes >= 2:
 
-    # =====================================================
-    # FINAL RESULT
-    # =====================================================
+            surveillance_status = "High Pediatric TB Surveillance Risk"
 
-    if positive_votes >= 2:
+            st.error("""
+HIGH PEDIATRIC TB SURVEILLANCE RISK DETECTED
 
-        final_prediction = "Positive"
+This child may require:
+- further clinical review,
+- GeneXpert investigation,
+- follow-up surveillance,
+- and additional laboratory testing.
+""")
 
-        st.error(
-            "HIGH TB RISK DETECTED"
-        )
+        else:
 
-    else:
+            surveillance_status = "Lower Pediatric TB Surveillance Risk"
 
-        final_prediction = "Negative"
+            st.success("""
+LOWER PEDIATRIC TB SURVEILLANCE RISK
 
-        st.success(
-            "LOW TB RISK"
-        )
+Current surveillance indicators suggest
+lower epidemiological concern.
+""")
 
-    # =====================================================
-    # SAVE SURVEILLANCE RECORD
-    # =====================================================
+    # =================================================
+    # SAVE RECORD
+    # =================================================
 
     new_record = pd.DataFrame([{
 
-        "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Date": datetime.now(),
+
+        "Case_Type": case_type,
 
         "Age": age,
 
@@ -333,7 +345,8 @@ if st.sidebar.button("Predict TB Risk"):
 
         "EPTB": eptb,
 
-        "TB_Outcome": final_prediction
+        "Surveillance_Status": surveillance_status
+
     }])
 
     new_record.to_csv(
@@ -343,204 +356,158 @@ if st.sidebar.button("Predict TB Risk"):
         index=False
     )
 
-    st.warning(
-        "Patient surveillance record saved successfully."
-    )
+    st.success("""
+Patient surveillance record saved successfully.
+""")
 
-# =========================================================
-# DELETE BUTTON
-# =========================================================
+# =====================================================
+# DELETE RECORDS
+# =====================================================
 
 if st.sidebar.button("Delete All Records"):
 
     empty_df = pd.DataFrame(columns=[
+
         "Date",
+        "Case_Type",
         "Age",
         "Sex",
         "HIV_Status",
         "Location",
         "Xray",
         "EPTB",
-        "TB_Outcome"
+        "Surveillance_Status"
+
     ])
 
-    empty_df.to_csv(DATABASE, index=False)
+    empty_df.to_csv(
+        DATABASE,
+        index=False
+    )
 
-    st.warning("All surveillance records deleted.")
+    st.warning("""
+All surveillance records deleted.
+""")
 
     st.rerun()
 
-# =========================================================
-# DASHBOARD BUTTON
-# =========================================================
-
-show_dashboard = st.button("View Surveillance Dashboard")
-
-# =========================================================
+# =====================================================
 # DASHBOARD
-# =========================================================
+# =====================================================
 
-if show_dashboard:
+st.header("Pediatric TB Surveillance Dashboard")
 
-    st.header("TB Surveillance Dashboard")
+total_cases = len(df)
 
-    # =====================================================
-    # METRICS
-    # =====================================================
+high_risk_cases = len(
 
-    col1, col2, col3 = st.columns(3)
+    df[
+        df["Surveillance_Status"] ==
+        "High Pediatric TB Surveillance Risk"
+    ]
+)
 
-    total_cases = len(df)
+confirmed_cases = len(
 
-    positive_cases = len(
-        df[df["TB_Outcome"] == "Positive"]
-    )
+    df[
+        df["Case_Type"] ==
+        "Confirmed Pediatric TB Case"
+    ]
+)
 
-    negative_cases = len(
-        df[df["TB_Outcome"] == "Negative"]
-    )
+lower_risk_cases = len(
 
-    col1.metric(
-        "Total Cases",
-        total_cases
-    )
+    df[
+        df["Surveillance_Status"] ==
+        "Lower Pediatric TB Surveillance Risk"
+    ]
+)
 
-    col2.metric(
-        "Positive Cases",
-        positive_cases
-    )
+col1, col2, col3, col4 = st.columns(4)
 
-    col3.metric(
-        "Negative Cases",
-        negative_cases
-    )
+col1.metric(
+    "Total Records",
+    total_cases
+)
 
-    # =====================================================
-    # HOTSPOT ANALYSIS
-    # =====================================================
+col2.metric(
+    "High Surveillance Risk",
+    high_risk_cases
+)
 
-    st.subheader("TB Hotspot Analysis")
+col3.metric(
+    "Confirmed TB Cases",
+    confirmed_cases
+)
 
-    hotspot = (
-        df[df["TB_Outcome"] == "Positive"]
-        .groupby("Location")
-        .size()
-        .reset_index(name="Positive Cases")
-    )
+col4.metric(
+    "Lower Surveillance Risk",
+    lower_risk_cases
+)
 
-    if len(hotspot) > 0:
+# =====================================================
+# HOTSPOT ANALYSIS
+# =====================================================
 
-        hotspot = hotspot.sort_values(
-            by="Positive Cases",
-            ascending=False
+st.header("TB Hotspot Surveillance")
+
+if len(df) > 0:
+
+    hotspot_df = df[
+
+        (
+            df["Surveillance_Status"] ==
+            "High Pediatric TB Surveillance Risk"
         )
 
-        fig_hotspot = px.bar(
-            hotspot,
-            x="Location",
-            y="Positive Cases",
-            text="Positive Cases",
-            title="Positive TB Cases by Location"
+        |
+
+        (
+            df["Case_Type"] ==
+            "Confirmed Pediatric TB Case"
         )
-
-        st.plotly_chart(
-            fig_hotspot,
-            use_container_width=True
-        )
-
-        highest = hotspot.iloc[0]
-
-        st.error(
-            f"ALERT: {highest['Location']} currently has "
-            f"the highest number of positive TB cases."
-        )
-
-    # =====================================================
-    # HIV DISTRIBUTION
-    # =====================================================
-
-    st.subheader("HIV Status Distribution")
-
-    hiv_counts = (
-        df["HIV_Status"]
-        .value_counts()
-        .reset_index()
-    )
-
-    hiv_counts.columns = [
-        "HIV Status",
-        "Count"
     ]
 
-    fig_hiv = px.pie(
-        hiv_counts,
-        names="HIV Status",
-        values="Count",
-        title="HIV Status Distribution"
-    )
+    if len(hotspot_df) > 0:
 
-    st.plotly_chart(
-        fig_hiv,
-        use_container_width=True
-    )
+        hotspot_counts = hotspot_df[
+            "Location"
+        ].value_counts()
 
-    # =====================================================
-    # XRAY DISTRIBUTION
-    # =====================================================
+        st.subheader(
+            "High-Risk and Confirmed TB Cases by Location"
+        )
 
-    st.subheader("X-Ray Distribution")
+        st.bar_chart(hotspot_counts)
 
-    fig_xray = px.histogram(
-        df,
-        x="Xray",
-        color="TB_Outcome",
-        barmode="group",
-        title="X-Ray Findings and TB Outcome"
-    )
+        highest_location = hotspot_counts.idxmax()
 
-    st.plotly_chart(
-        fig_xray,
-        use_container_width=True
-    )
+        highest_cases = hotspot_counts.max()
 
-    # =====================================================
-    # EPTB DISTRIBUTION
-    # =====================================================
+        st.error(f"""
+SURVEILLANCE ALERT:
 
-    st.subheader("EPTB Distribution")
+{highest_location} currently shows the highest
+number of high-risk or confirmed pediatric TB cases
+({highest_cases} cases).
 
-    fig_eptb = px.histogram(
-        df,
-        x="EPTB",
-        color="TB_Outcome",
-        barmode="group",
-        title="EPTB Distribution"
-    )
-
-    st.plotly_chart(
-        fig_eptb,
-        use_container_width=True
-    )
-
-    # =====================================================
-    # RECORDED DATA
-    # =====================================================
-
-    st.subheader("Recorded Surveillance Data")
-
-    st.dataframe(
-        df,
-        use_container_width=True
-    )
-
-# =========================================================
-# FOOTER
-# =========================================================
-
-st.markdown("---")
-
-st.markdown("""
-Developed for Childhood Tuberculosis Prediction,
-Clinical Decision Support,
-and Epidemiological Surveillance.
+Public health follow-up and further investigation
+may be required.
 """)
+
+    else:
+
+        st.info("""
+No hotspot alerts currently detected.
+""")
+
+# =====================================================
+# RECORDED DATA
+# =====================================================
+
+st.header("Recorded Pediatric TB Surveillance Data")
+
+st.dataframe(
+    df,
+    use_container_width=True
+)
