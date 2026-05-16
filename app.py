@@ -15,6 +15,13 @@ st.set_page_config(
 
 st.title("TB Surveillance and Clinical Decision Support System")
 
+st.info("""
+Prototype Notice:
+This TB Surveillance and Clinical Decision Support System is a prototype developed for research and educational purposes.
+The system is designed to support TB hotspot surveillance, epidemiological monitoring, and preliminary clinical decision-making.
+It should not replace professional medical diagnosis or national TB program guidelines.
+""")
+
 st.markdown("""
 This system assists healthcare workers in:
 - Capturing pediatric TB surveillance information
