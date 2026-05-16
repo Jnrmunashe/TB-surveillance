@@ -1,6 +1,9 @@
-Date,Age,Sex,HIV_Status,Location,Xray,EPTB,TB_Outcome
-2026-05-16 06:10,5,Male,Positive,Gweru,Yes,Yes,Positive
-2026-05-16 06:11,5,Male,Positive,Mvuma,Yes,Yes,Negative
-2026-05-16 06:16,5,Male,Positive,Bulawayo,Yes,Yes,Negative
-2026-05-16 06:17,5,Male,Negative,Bulawayo,Yes,Yes,Negative
-2026-05-16 06:17,5,Male,Unknown,Bulawayo,Yes,Yes,Negative
+Date,Case_Type,Age,Sex,HIV_Status,Location,Xray,EPTB,Surveillance_Status
+2026-05-16 09:46:04.867582,Suspected Pediatric TB Case,5,Male,Positive,Gweru,Yes,Yes,Lower Pediatric TB Surveillance Risk
+2026-05-16 09:46:19.399952,Suspected Pediatric TB Case,6,Male,Positive,Gweru,Yes,Yes,Lower Pediatric TB Surveillance Risk
+2026-05-16 09:46:50.888614,Confirmed Pediatric TB Case,4,Male,Positive,Gweru,No,Yes,Confirmed TB Surveillance Case
+2026-05-16 09:47:11.659328,Confirmed Pediatric TB Case,4,Male,Positive,Gweru,No,Yes,Confirmed TB Surveillance Case
+2026-05-16 09:48:12.537152,Suspected Pediatric TB Case,4,Male,Positive,Gweru,No,Yes,Lower Pediatric TB Surveillance Risk
+2026-05-16 09:48:31.412631,Suspected Pediatric TB Case,4,Male,Positive,Gweru,Yes,Yes,Lower Pediatric TB Surveillance Risk
+2026-05-16 09:48:45.413826,Suspected Pediatric TB Case,4,Male,Positive,Gweru,Yes,Yes,Lower Pediatric TB Surveillance Risk
+2026-05-16 09:49:09.562145,Suspected Pediatric TB Case,1,Male,Positive,Kwekwe,Yes,Yes,Lower Pediatric TB Surveillance Risk
