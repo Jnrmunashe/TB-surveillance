@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import joblib
 import os
 from datetime import datetime
 
@@ -9,29 +10,53 @@ from datetime import datetime
 # =========================================================
 
 st.set_page_config(
-    page_title="TB Surveillance System",
+    page_title="Childhood TB Prediction System",
     layout="wide"
 )
 
-st.title("TB Surveillance and Clinical Decision Support System")
+# =========================================================
+# TITLE
+# =========================================================
+
+st.title("Machine Learning-Based Childhood TB Prediction and Surveillance System")
 
 st.info("""
 Prototype Notice:
-This TB Surveillance and Clinical Decision Support System is a prototype developed for research and educational purposes.
-The system is designed to support TB hotspot surveillance, epidemiological monitoring, and preliminary clinical decision-making.
-It should not replace professional medical diagnosis or national TB program guidelines.
-""")
-
-st.markdown("""
-This system assists healthcare workers in:
-- Capturing pediatric TB surveillance information
-- Monitoring TB hotspot locations
-- Supporting clinical decision making
-- Tracking epidemiological trends
+This system is a prototype developed for research and educational purposes.
+It supports preliminary childhood TB risk prediction and surveillance monitoring.
+The system does not replace professional medical diagnosis.
 """)
 
 # =========================================================
-# DATABASE FILE
+# USER INSTRUCTIONS
+# =========================================================
+
+st.markdown("## Instructions for Healthcare Workers")
+
+st.markdown("""
+1. Enter patient clinical information using the left sidebar.
+2. Click **Predict TB Risk**.
+3. Review the prediction results.
+4. Patient surveillance records are automatically saved.
+5. Click **View Surveillance Dashboard** to analyse trends and hotspot locations.
+""")
+
+# =========================================================
+# LOAD MACHINE LEARNING MODELS
+# =========================================================
+
+rf_model = joblib.load("randomforest.pkl")
+
+lr_model = joblib.load("logistic.pkl")
+
+svm_model = joblib.load("svm.pkl")
+
+xgb_model = joblib.load("xgboost.pkl")
+
+model_columns = joblib.load("model_columns.pkl")
+
+# =========================================================
+# DATABASE
 # =========================================================
 
 DATABASE = "tb_surveillance_data.csv"
@@ -55,7 +80,22 @@ if not os.path.exists(DATABASE):
 # LOAD DATABASE
 # =========================================================
 
-df = pd.read_csv(DATABASE)
+try:
+
+    df = pd.read_csv(DATABASE)
+
+except:
+
+    df = pd.DataFrame(columns=[
+        "Date",
+        "Age",
+        "Sex",
+        "HIV_Status",
+        "Location",
+        "Xray",
+        "EPTB",
+        "TB_Outcome"
+    ])
 
 # =========================================================
 # SIDEBAR INPUTS
@@ -72,58 +112,228 @@ age = st.sidebar.number_input(
 
 sex = st.sidebar.selectbox(
     "Sex",
-    ["Male", "Female", "Unknown"]
+    [
+        "Male",
+        "Female"
+    ]
 )
 
 hiv_status = st.sidebar.selectbox(
     "HIV Status",
-    ["Positive", "Negative", "Unknown"]
+    [
+        "Positive",
+        "Negative",
+        "Unknown"
+    ]
 )
 
 location = st.sidebar.selectbox(
     "Location",
     [
+        "Gokwe",
         "Gweru",
         "Kwekwe",
-        "Zvishavane",
+        "Mberengwa",
         "Shurugwi",
-        "Mvuma",
-        "Bulawayo",
-        "Harare",
-        "Unknown"
+        "Zvishavane",
+        "Mvuma"
     ]
 )
 
 xray = st.sidebar.selectbox(
     "X-Ray Suggestive of TB",
-    ["Yes", "No", "Unknown"]
+    [
+        "Yes",
+        "No",
+        "Unknown"
+    ]
 )
 
 eptb = st.sidebar.selectbox(
-    "EPTB Present",
-    ["Yes", "No", "Unknown"]
-)
-
-tb_outcome = st.sidebar.selectbox(
-    "TB Outcome",
-    ["Positive", "Negative", "Unknown"]
+    "EPTB",
+    [
+        "Unknown",
+        "Present"
+    ]
 )
 
 # =========================================================
-# SAVE BUTTON
+# CREATE INPUT DATAFRAME
 # =========================================================
 
-if st.sidebar.button("Save Surveillance Record"):
+input_data = pd.DataFrame(
+    0,
+    index=[0],
+    columns=model_columns
+)
+
+# =========================================================
+# FILL INPUT DATA
+# =========================================================
+
+input_data["Age"] = age
+
+# =========================================================
+# SEX
+# =========================================================
+
+if sex == "Male":
+
+    input_data["Sex_m"] = 1
+
+    if "Sex_m " in input_data.columns:
+
+        input_data["Sex_m "] = 1
+
+# =========================================================
+# HIV STATUS
+# =========================================================
+
+if hiv_status == "Positive":
+
+    input_data["HIV_Status_1"] = 1
+
+elif hiv_status == "Unknown":
+
+    if "HIV_Status_unknown" in input_data.columns:
+
+        input_data["HIV_Status_unknown"] = 1
+
+    if "HIV_Status_uknown" in input_data.columns:
+
+        input_data["HIV_Status_uknown"] = 1
+
+else:
+
+    input_data["HIV_Status_9"] = 1
+
+# =========================================================
+# LOCATION
+# =========================================================
+
+location_column = f"Location_{location}"
+
+if location_column in input_data.columns:
+
+    input_data[location_column] = 1
+
+if location == "Gweru":
+
+    if "Location_Gweru " in input_data.columns:
+
+        input_data["Location_Gweru "] = 1
+
+# =========================================================
+# XRAY
+# =========================================================
+
+if xray == "Yes":
+
+    input_data["X-ray_1"] = 1
+
+elif xray == "Unknown":
+
+    input_data["X-ray_unknown"] = 1
+
+# =========================================================
+# EPTB
+# =========================================================
+
+if eptb == "Unknown":
+
+    input_data["EPTB_unknown"] = 1
+
+# =========================================================
+# PREDICT BUTTON
+# =========================================================
+
+if st.sidebar.button("Predict TB Risk"):
+
+    rf_pred = rf_model.predict(input_data)[0]
+
+    lr_pred = lr_model.predict(input_data)[0]
+
+    svm_pred = svm_model.predict(input_data)[0]
+
+    xgb_pred = xgb_model.predict(input_data)[0]
+
+    # =====================================================
+    # RESULTS
+    # =====================================================
+
+    st.header("Prediction Results")
+
+    results = pd.DataFrame({
+
+        "Model": [
+            "Random Forest",
+            "Logistic Regression",
+            "SVM",
+            "XGBoost"
+        ],
+
+        "Prediction": [
+            rf_pred,
+            lr_pred,
+            svm_pred,
+            xgb_pred
+        ]
+    })
+
+    st.dataframe(results)
+
+    # =====================================================
+    # MAJORITY VOTING
+    # =====================================================
+
+    positive_votes = (
+        rf_pred +
+        lr_pred +
+        svm_pred +
+        xgb_pred
+    )
+
+    # =====================================================
+    # FINAL RESULT
+    # =====================================================
+
+    if positive_votes >= 2:
+
+        final_prediction = "Positive"
+
+        st.error(
+            "HIGH TB RISK DETECTED"
+        )
+
+    else:
+
+        final_prediction = "Negative"
+
+        st.success(
+            "LOW TB RISK"
+        )
+
+    # =====================================================
+    # SAVE SURVEILLANCE RECORD
+    # =====================================================
 
     new_record = pd.DataFrame([{
+
         "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+
         "Age": age,
+
         "Sex": sex,
+
         "HIV_Status": hiv_status,
+
         "Location": location,
+
         "Xray": xray,
+
         "EPTB": eptb,
-        "TB_Outcome": tb_outcome
+
+        "TB_Outcome": final_prediction
     }])
 
     new_record.to_csv(
@@ -133,9 +343,9 @@ if st.sidebar.button("Save Surveillance Record"):
         index=False
     )
 
-    st.success("Record saved successfully.")
-
-    st.rerun()
+    st.warning(
+        "Patient surveillance record saved successfully."
+    )
 
 # =========================================================
 # DELETE BUTTON
@@ -156,38 +366,60 @@ if st.sidebar.button("Delete All Records"):
 
     empty_df.to_csv(DATABASE, index=False)
 
-    st.warning("All records deleted.")
+    st.warning("All surveillance records deleted.")
 
     st.rerun()
 
 # =========================================================
-# DASHBOARD METRICS
+# DASHBOARD BUTTON
 # =========================================================
 
-st.header("Overall Surveillance Statistics")
-
-col1, col2, col3, col4 = st.columns(4)
-
-total_cases = len(df)
-
-positive_cases = len(df[df["TB_Outcome"] == "Positive"])
-
-negative_cases = len(df[df["TB_Outcome"] == "Negative"])
-
-hiv_positive = len(df[df["HIV_Status"] == "Positive"])
-
-col1.metric("Total Records", total_cases)
-col2.metric("TB Positive", positive_cases)
-col3.metric("TB Negative", negative_cases)
-col4.metric("HIV Positive", hiv_positive)
+show_dashboard = st.button("View Surveillance Dashboard")
 
 # =========================================================
-# HOTSPOT ANALYSIS
+# DASHBOARD
 # =========================================================
 
-st.header("TB Hotspot Surveillance")
+if show_dashboard:
 
-if len(df) > 0:
+    st.header("TB Surveillance Dashboard")
+
+    # =====================================================
+    # METRICS
+    # =====================================================
+
+    col1, col2, col3 = st.columns(3)
+
+    total_cases = len(df)
+
+    positive_cases = len(
+        df[df["TB_Outcome"] == "Positive"]
+    )
+
+    negative_cases = len(
+        df[df["TB_Outcome"] == "Negative"]
+    )
+
+    col1.metric(
+        "Total Cases",
+        total_cases
+    )
+
+    col2.metric(
+        "Positive Cases",
+        positive_cases
+    )
+
+    col3.metric(
+        "Negative Cases",
+        negative_cases
+    )
+
+    # =====================================================
+    # HOTSPOT ANALYSIS
+    # =====================================================
+
+    st.subheader("TB Hotspot Analysis")
 
     hotspot = (
         df[df["TB_Outcome"] == "Positive"]
@@ -198,70 +430,86 @@ if len(df) > 0:
 
     if len(hotspot) > 0:
 
+        hotspot = hotspot.sort_values(
+            by="Positive Cases",
+            ascending=False
+        )
+
         fig_hotspot = px.bar(
             hotspot,
             x="Location",
             y="Positive Cases",
-            title="TB Positive Cases by Location",
-            text_auto=True
+            text="Positive Cases",
+            title="Positive TB Cases by Location"
         )
 
-        st.plotly_chart(fig_hotspot, use_container_width=True)
+        st.plotly_chart(
+            fig_hotspot,
+            use_container_width=True
+        )
 
-        highest = hotspot.sort_values(
-            by="Positive Cases",
-            ascending=False
-        ).iloc[0]
+        highest = hotspot.iloc[0]
 
         st.error(
             f"ALERT: {highest['Location']} currently has "
-            f"the highest TB burden with "
-            f"{highest['Positive Cases']} positive cases."
+            f"the highest number of positive TB cases."
         )
 
-# =========================================================
-# HIV STATUS DISTRIBUTION
-# =========================================================
+    # =====================================================
+    # HIV DISTRIBUTION
+    # =====================================================
 
-st.header("HIV Status Distribution")
+    st.subheader("HIV Status Distribution")
 
-if len(df) > 0:
+    hiv_counts = (
+        df["HIV_Status"]
+        .value_counts()
+        .reset_index()
+    )
 
-    hiv_fig = px.pie(
-        df,
-        names="HIV_Status",
+    hiv_counts.columns = [
+        "HIV Status",
+        "Count"
+    ]
+
+    fig_hiv = px.pie(
+        hiv_counts,
+        names="HIV Status",
+        values="Count",
         title="HIV Status Distribution"
     )
 
-    st.plotly_chart(hiv_fig, use_container_width=True)
+    st.plotly_chart(
+        fig_hiv,
+        use_container_width=True
+    )
 
-# =========================================================
-# X-RAY DISTRIBUTION
-# =========================================================
+    # =====================================================
+    # XRAY DISTRIBUTION
+    # =====================================================
 
-st.header("X-Ray TB Suggestion Distribution")
+    st.subheader("X-Ray Distribution")
 
-if len(df) > 0:
-
-    xray_fig = px.histogram(
+    fig_xray = px.histogram(
         df,
         x="Xray",
         color="TB_Outcome",
         barmode="group",
-        title="X-Ray Suggestive of TB"
+        title="X-Ray Findings and TB Outcome"
     )
 
-    st.plotly_chart(xray_fig, use_container_width=True)
+    st.plotly_chart(
+        fig_xray,
+        use_container_width=True
+    )
 
-# =========================================================
-# EPTB DISTRIBUTION
-# =========================================================
+    # =====================================================
+    # EPTB DISTRIBUTION
+    # =====================================================
 
-st.header("EPTB Distribution")
+    st.subheader("EPTB Distribution")
 
-if len(df) > 0:
-
-    eptb_fig = px.histogram(
+    fig_eptb = px.histogram(
         df,
         x="EPTB",
         color="TB_Outcome",
@@ -269,28 +517,21 @@ if len(df) > 0:
         title="EPTB Distribution"
     )
 
-    st.plotly_chart(eptb_fig, use_container_width=True)
+    st.plotly_chart(
+        fig_eptb,
+        use_container_width=True
+    )
 
-# =========================================================
-# SURVEILLANCE TABLE
-# =========================================================
+    # =====================================================
+    # RECORDED DATA
+    # =====================================================
 
-st.header("Recorded Surveillance Data")
+    st.subheader("Recorded Surveillance Data")
 
-st.dataframe(df, use_container_width=True)
-
-# =========================================================
-# DOWNLOAD DATASET
-# =========================================================
-
-csv = df.to_csv(index=False)
-
-st.download_button(
-    label="Download Surveillance Dataset",
-    data=csv,
-    file_name="tb_surveillance_data.csv",
-    mime="text/csv"
-)
+    st.dataframe(
+        df,
+        use_container_width=True
+    )
 
 # =========================================================
 # FOOTER
@@ -299,7 +540,7 @@ st.download_button(
 st.markdown("---")
 
 st.markdown("""
-Developed for Pediatric Tuberculosis Surveillance,
+Developed for Childhood Tuberculosis Prediction,
 Clinical Decision Support,
-and Epidemiological Monitoring.
+and Epidemiological Surveillance.
 """)
