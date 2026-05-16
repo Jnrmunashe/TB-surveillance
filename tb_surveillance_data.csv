@@ -1,0 +1,6 @@
+Date,Age,Sex,HIV_Status,Location,Xray,EPTB,TB_Outcome
+2026-05-16 06:10,5,Male,Positive,Gweru,Yes,Yes,Positive
+2026-05-16 06:11,5,Male,Positive,Mvuma,Yes,Yes,Negative
+2026-05-16 06:16,5,Male,Positive,Bulawayo,Yes,Yes,Negative
+2026-05-16 06:17,5,Male,Negative,Bulawayo,Yes,Yes,Negative
+2026-05-16 06:17,5,Male,Unknown,Bulawayo,Yes,Yes,Negative
